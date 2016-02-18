@@ -6,7 +6,7 @@ module hello {
     revision "2016-02-18" {
         description "added hello-world";
     }
-    rpc hellow-world {
+    rpc hello-world {
         input {
             leaf name {
                 type string;
