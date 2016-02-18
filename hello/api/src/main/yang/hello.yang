@@ -3,7 +3,20 @@ module hello {
     namespace "urn:opendaylight:params:xml:ns:yang:hello";
     prefix "hello";
 
-    revision "2015-01-05" {
-        description "Initial revision of hello model";
+    revision "2016-02-18" {
+        description "added hello-world";
     }
+    rpc hellow-world {
+        input {
+            leaf name {
+                type string;
+            }
+        }
+        output {
+            leaf greeting {
+                type string;
+            }
+        }
+    }
+        
 }
