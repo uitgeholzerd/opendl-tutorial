@@ -11,10 +11,23 @@ import static org.ops4j.pax.exam.CoreOptions.composite;
 import static org.ops4j.pax.exam.CoreOptions.maven;
 import static org.ops4j.pax.exam.karaf.options.KarafDistributionOption.editConfigurationFilePut;
 
+import com.google.common.base.Optional;
+import com.google.common.util.concurrent.CheckedFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.opendaylight.controller.md.sal.binding.api.DataBroker;
+import org.opendaylight.controller.md.sal.binding.api.ReadOnlyTransaction;
+import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
+import org.opendaylight.controller.md.sal.common.api.data.ReadFailedException;
 import org.opendaylight.controller.mdsal.it.base.AbstractMdsalTestBase;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev160218.*;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev160218.greeting.registry.GreetingRegistryEntry;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev160218.greeting.registry.GreetingRegistryEntryKey;
+import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
+import org.opendaylight.yangtools.yang.common.RpcResult;
 import org.ops4j.pax.exam.Option;
 import org.ops4j.pax.exam.junit.PaxExam;
 import org.ops4j.pax.exam.karaf.options.LogLevelOption.LogLevel;
@@ -64,7 +77,38 @@ public class HelloIT extends AbstractMdsalTestBase {
     }
 
     @Test
-    public void testhelloFeatureLoad() {
+    public void testHelloFeatureLoad() {
         Assert.assertTrue(true);
+    }
+
+    @Test
+    public void testRPC() throws InterruptedException, ExecutionException {
+        String name = "Sebastian";
+        HelloService service = getSession().getRpcService(HelloService.class);
+
+        HelloWorldInput input = new HelloWorldInputBuilder()
+                .setName(name)
+                .build();
+        Future<RpcResult<HelloWorldOutput>> outputFuture = service.helloWorld(input);
+        RpcResult<HelloWorldOutput> outputResult = outputFuture.get();
+        Assert.assertTrue("RPC was unsuccessful", outputResult.isSuccessful());
+        Assert.assertEquals("Unexpected RPC resonse", "Hello " + name, outputResult.getResult().getGreeting());
+        validateGreetingRegistry(name);
+    }
+
+    private void validateGreetingRegistry(String name) {
+        InstanceIdentifier<GreetingRegistryEntry> iid = InstanceIdentifier.create(GreetingRegistry.class)
+                .child(GreetingRegistryEntry.class, new GreetingRegistryEntryKey(name));
+        DataBroker db = getSession().getSALService(DataBroker.class);
+        ReadOnlyTransaction transaction = db.newReadOnlyTransaction();
+        CheckedFuture<Optional<GreetingRegistryEntry>, ReadFailedException> future =
+                transaction.read(LogicalDatastoreType.OPERATIONAL, iid);
+        Optional<GreetingRegistryEntry> optional = Optional.absent();
+        try {
+            optional = future.checkedGet();
+        } catch (ReadFailedException e) {
+            LOG.warn("Reading greeting failed:", e);
+        }
+        Assert.assertTrue(name + " not recorded in greeting registry", optional.isPresent());
     }
 }
